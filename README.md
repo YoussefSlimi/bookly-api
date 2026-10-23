@@ -1,420 +1,248 @@
-# 📚 Bookly — Backend API
+# Bookly API
 
-> A production-ready **REST API** for a book review platform, built with **FastAPI**, **PostgreSQL**, **Redis**, and **Celery**.
+A REST API for a book review platform, built with FastAPI, PostgreSQL, Redis, and Celery.
 
----
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-async-009688)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Documentation](#documentation)
+- [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
-- [Features](#features)
-- [API Endpoints](#api-endpoints)
-- [Data Models](#data-models)
 - [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Environment Variables](#environment-variables)
-  - [Installation](#installation)
-  - [Running the Services](#running-the-services)
-- [Authentication Flow](#authentication-flow)
-- [Role-Based Access Control](#role-based-access-control)
-- [Background Tasks (Celery)](#background-tasks-celery)
-- [Flower Monitoring](#flower-monitoring)
+- [Configuration](#configuration)
+- [API Overview](#api-overview)
+- [Background Tasks](#background-tasks)
 - [Database Migrations](#database-migrations)
-
----
+- [Testing](#testing)
+- [Known Limitations](#known-limitations)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Overview
 
-**Bookly** is a full-featured book review web service. Users can register, browse books, submit reviews, and manage tags. The platform supports two roles — `user` and `admin` — with JWT-based authentication, email verification, password reset flows, and a Redis-backed token blocklist for secure logouts.
+Bookly lets users register, browse books, submit reviews, and organize books with tags. It supports two roles (`user` and `admin`), JWT authentication with refresh tokens, email verification, password reset, and a Redis-backed token blocklist for secure logout. Emails are sent asynchronously through Celery so they never block API responses.
 
----
+## Documentation
+
+| Resource | Description |
+|---|---|
+| [Backend technical docs](docs/README.md) | Backend only: architecture, auth, API reference, errors, data model, security |
+| Swagger UI (`/docs`) | Interactive API explorer, available when the server is running |
+| ReDoc (`/redoc`) | Readable API reference, available when the server is running |
+
+## Features
+
+- User registration with email verification
+- JWT authentication (short-lived access token, long-lived refresh token)
+- Secure logout via JTI blocklist in Redis
+- Password reset by email link
+- Role-based access control (`user`, `admin`)
+- Admin tools: list users, change roles, delete accounts, send broadcast emails
+- Book CRUD, reviews (1–5 stars), and tags (many-to-many)
+- Asynchronous email delivery with Celery and Redis
+- Request logging middleware with response-time tracking
+- CORS preconfigured for local frontends (`localhost:3000`, `localhost:5173`)
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| **Framework** | [FastAPI](https://fastapi.tiangolo.com/) 0.138 |
-| **Language** | Python 3.11+ |
-| **Database** | PostgreSQL (via `asyncpg`) |
-| **ORM** | [SQLModel](https://sqlmodel.tiangolo.com/) + SQLAlchemy (async) |
-| **Cache / Broker** | Redis |
-| **Task Queue** | Celery |
-| **Auth** | JWT (access + refresh tokens) |
-| **Password Hashing** | Argon2 (`argon2-cffi`) + Passlib |
-| **Email** | FastAPI-Mail (SMTP / Gmail) |
-| **Migrations** | Alembic |
-| **Server** | Uvicorn |
-
----
+| Framework | FastAPI |
+| Language | Python 3.11+ |
+| Database | PostgreSQL via `asyncpg` |
+| ORM | SQLModel + SQLAlchemy (async) |
+| Cache / Broker | Redis |
+| Task queue | Celery (monitored with Flower) |
+| Auth | JWT, Argon2 password hashing |
+| Email | FastAPI-Mail (SMTP) |
+| Migrations | Alembic |
+| Server | Uvicorn |
 
 ## Project Structure
 
 ```
 backend/
 ├── src/
-│   ├── __init__.py          # FastAPI app factory, lifespan, router registration
-│   ├── config.py            # Pydantic settings (env-based configuration)
-│   ├── constants.py         # App-wide constants (token expiry, etc.)
-│   ├── errors.py            # Custom exception classes & global error handlers
-│   ├── middleware.py        # CORS, TrustedHost, request logging middleware
-│   ├── mail.py              # FastAPI-Mail setup & message factory
-│   ├── celery_tasks.py      # Celery app + async email task
-│   ├── auth/
-│   │   ├── routers.py       # All auth endpoints
-│   │   ├── schemas.py       # Pydantic request/response models
-│   │   ├── service.py       # User CRUD operations
-│   │   ├── dependencies.py  # JWT bearer dependencies, role checker
-│   │   └── utils.py         # Token creation, hashing, URL-safe tokens
-│   ├── books/
-│   │   ├── routes.py        # Book CRUD endpoints
-│   │   ├── schemas.py       # Book Pydantic models
-│   │   └── service.py       # Book business logic
-│   ├── reviews/
-│   │   ├── routes.py        # Review endpoints
-│   │   ├── schemas.py       # Review Pydantic models
-│   │   └── service.py       # Review business logic
-│   ├── tags/
-│   │   ├── routes.py        # Tag CRUD endpoints
-│   │   ├── schemas.py       # Tag Pydantic models
-│   │   └── service.py       # Tag business logic
-│   ├── db/
-│   │   ├── main.py          # Async engine, session factory, DB init
-│   │   ├── models.py        # SQLModel table definitions
-│   │   └── redis.py         # Redis client, JWT blocklist helpers
-│   └── templates/           # HTML email templates
-├── migrations/              # Alembic migration scripts
-├── alembic.ini              # Alembic configuration
+│   ├── __init__.py          # App factory, lifespan, router registration
+│   ├── config.py            # Environment-based settings (Pydantic)
+│   ├── constants.py         # App-wide constants
+│   ├── errors.py            # Custom exceptions and global handlers
+│   ├── middleware.py        # CORS, TrustedHost, request logging
+│   ├── mail.py              # FastAPI-Mail setup
+│   ├── celery_tasks.py      # Celery app and email task
+│   ├── auth/                # Users, tokens, roles
+│   ├── books/               # Book CRUD
+│   ├── reviews/             # Book reviews
+│   ├── tags/                # Tags and book-tag association
+│   ├── db/                  # Engine/session, models, Redis helpers
+│   ├── templates/           # HTML email templates
+│   └── tests/               # Pytest tests (auth, books)
+├── docs/                    # Backend technical docs only (see docs/README.md)
+├── migrations/              # Alembic scripts
+├── alembic.ini
 ├── requirements.txt
-└── .env                     # Environment variables (not committed)
+├── .env.example             # Environment template (copy to .env)
+└── .env                     # Local configuration (not committed)
 ```
 
----
-
-## Features
-
-- ✅ **User registration** with email verification (via secure URL-safe token)
-- ✅ **JWT authentication** — access token (short-lived) + refresh token (long-lived)
-- ✅ **Secure logout** — JTI-based token blocklist stored in Redis
-- ✅ **Password reset** — request & confirm flow via email link
-- ✅ **Role-based access control** — `user` and `admin` roles
-- ✅ **Admin management** — list users, update roles, delete accounts
-- ✅ **Book CRUD** — create, read, update, delete books
-- ✅ **Reviews** — authenticated users can submit reviews (1–5 stars)
-- ✅ **Tags** — create tags and associate them with books
-- ✅ **Async email delivery** via Celery + Redis (non-blocking)
-- ✅ **Request logging middleware** with response time tracking
-- ✅ **CORS** configured for local frontend dev (`localhost:3000`, `localhost:5173`)
-- ✅ **Interactive API docs** at `/docs` (Swagger) and `/redoc`
-
----
-
-## API Endpoints
-
-### 🔐 Auth — `/api/v1/auth`
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/signup` | ❌ | Register a new user (sends verification email) |
-| `POST` | `/admin/signup` | ✅ Admin | Create an admin account |
-| `GET` | `/verify/{token}` | ❌ | Verify email address |
-| `POST` | `/login` | ❌ | Login, returns access & refresh tokens |
-| `GET` | `/refresh_token` | ✅ Refresh | Get a new access token |
-| `GET` | `/me` | ✅ User | Get current user profile (with books) |
-| `GET` | `/logout` | ✅ User | Revoke access token (adds JTI to blocklist) |
-| `POST` | `/password-reset-request` | ❌ | Request a password reset email |
-| `POST` | `/password-reset-confirm/{token}` | ❌ | Confirm and set new password |
-| `POST` | `/send_mail` | ✅ Admin | Send a broadcast email |
-| `GET` | `/users` | ✅ Admin | List all users |
-| `PATCH` | `/users/{uid}/role` | ✅ Admin | Update a user's role |
-| `DELETE` | `/users/{uid}` | ✅ Admin | Delete a user account |
-
-### 📖 Books — `/api/v1/books`
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET` | `/` | ✅ User | List all books |
-| `POST` | `/` | ✅ User | Create a new book |
-| `GET` | `/{book_uid}` | ✅ User | Get book details (with reviews & tags) |
-| `PATCH` | `/{book_uid}` | ✅ User | Update a book |
-| `DELETE` | `/{book_uid}` | ✅ User | Delete a book |
-| `GET` | `/user/{user_uid}` | ✅ User | Get all books by a specific user |
-
-### ⭐ Reviews — `/api/v1/reviews`
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/book/{book_uid}` | ✅ User | Add a review to a book |
-
-### 🏷️ Tags — `/api/v1/tags`
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `GET` | `/` | ✅ User | List all tags |
-| `POST` | `/` | ✅ User | Create a new tag |
-| `POST` | `/book/{book_uid}/tags` | ✅ User | Attach tags to a book |
-| `PUT` | `/{tag_uid}` | ✅ User | Update a tag |
-| `DELETE` | `/{tag_uid}` | ✅ User | Delete a tag |
-
----
-
-## Data Models
-
-```
-User ──< Book ──< Review
-  │
-  └──< Review
-
-Book >──< Tag  (many-to-many via BookTag)
-```
-
-| Model | Key Fields |
-|---|---|
-| `User` | `uid`, `username`, `email`, `role`, `is_verified`, `password_hash` |
-| `Book` | `uid`, `title`, `author`, `publisher`, `language`, `user_uid` |
-| `Review` | `uid`, `rating` (1–5), `review_text`, `user_uid`, `book_uid` |
-| `Tag` | `uid`, `name` |
-| `BookTag` | `book_id`, `tag_id` (join table) |
-
----
+See [Architecture](docs/architecture.md) for the layered design and the [data model](docs/data-model.md) for the entity-relationship diagram.
 
 ## Getting Started
 
 ### Prerequisites
 
-Make sure the following are installed and running:
-
 | Requirement | Version | Notes |
 |---|---|---|
 | Python | 3.11+ | |
-| PostgreSQL | 14+ | Database must exist before running |
-| Redis | 7+ | Used as Celery broker and token blocklist |
-| pip | latest | |
-
-### Environment Variables
-
-Create a `.env` file in the `backend/` directory:
-
-```env
-# Database
-DATABASE_URL=postgresql+asyncpg://<user>:<password>@localhost:5432/bookly_db
-
-# JWT
-JWT_SECRET=your-super-secret-key
-JWT_ALGORITHM=HS256
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-
-# Mail (Gmail example)
-MAIL_USERNAME=your@gmail.com
-MAIL_PASSWORD=your-app-password
-MAIL_FROM=your@gmail.com
-MAIL_FROM_NAME=Bookly
-MAIL_SERVER=smtp.gmail.com
-MAIL_PORT=587
-MAIL_STARTTLS=True
-MAIL_SSL_TLS=False
-
-# App
-DOMAIN=localhost:8000
-APP_SCHEME=http
-ADMIN_SECRET_KEY=your-admin-secret
-```
-
-> **Gmail tip**: Use an [App Password](https://support.google.com/accounts/answer/185833) instead of your real password.
+| PostgreSQL | 14+ | The database must exist before startup |
+| Redis | 7+ | Celery broker and token blocklist |
 
 ### Installation
 
-```powershell
-# 1. Navigate to the backend directory
+```bash
+git clone <your-repository-url>
 cd backend
 
-# 2. Create and activate a virtual environment
 python -m venv env
-.\env\Scripts\Activate.ps1
+source env/bin/activate        # Windows: .\env\Scripts\Activate.ps1
 
-# 3. Install dependencies
 pip install -r requirements.txt
+cp .env.example .env           # Windows: copy .env.example .env
 ```
 
-### Running the Services
+Edit `.env` and set at least `DATABASE_URL`, `JWT_SECRET`, and any mail values you need. See [Configuration](#configuration).
 
-You need **5 services** running simultaneously. Open a **separate terminal** for each:
+Create the database:
 
-#### 1. 🐘 PostgreSQL
-Start via pgAdmin or Windows Services. Ensure the database exists:
 ```sql
 CREATE DATABASE bookly_db;
 ```
 
-#### 2. 🔴 Redis
-**Via WSL (recommended on Windows):**
+### Running the services
+
+Bookly needs four processes. Run each in its own terminal, with the virtual environment activated, from the `backend/` directory.
+
+**1. Redis**
+
 ```bash
-sudo service redis-server start
-```
-**Natively on Windows:**
-```powershell
 redis-server
 ```
 
-> **Note:** If using WSL, the `REDIS_URL` in `.env` must point to the WSL IP (e.g., `redis://172.x.x.x:6379/0`). This IP can change after a reboot — check with `hostname -I` inside WSL.
+On Windows, run Redis through WSL (`sudo service redis-server start`). If you do, set `REDIS_URL` to the WSL IP (find it with `hostname -I`). This IP can change after a reboot.
 
-#### 3. ⚙️ Celery Worker
-```powershell
-# In backend/ with venv activated
-celery -A src.celery_tasks.c_app worker --loglevel=info -P solo
+**2. Celery worker**
+
+```bash
+celery -A src.celery_tasks.c_app worker --loglevel=info
 ```
-> `-P solo` is **required on Windows** since Celery does not support the default `prefork` pool on Windows.
 
-#### 4. 🌸 Flower (Celery Monitor)
-```powershell
-# In backend/ with venv activated
+On Windows, add `-P solo`, since the default `prefork` pool is not supported there.
+
+**3. Flower (optional, Celery monitoring)**
+
+```bash
+pip install flower
 celery -A src.celery_tasks.c_app flower --port=5555
 ```
 
-Flower dashboard will be available at: **http://localhost:5555**
+**4. API server**
 
-> Install if not present: `pip install flower`
-
-#### 5. 🚀 FastAPI (Uvicorn)
-```powershell
-# In backend/ with venv activated
+```bash
 uvicorn src:app --reload
 ```
 
-| URL | Description |
+| URL | Purpose |
 |---|---|
 | http://localhost:8000 | API base |
 | http://localhost:8000/docs | Swagger UI |
 | http://localhost:8000/redoc | ReDoc |
-| http://localhost:5555 | Flower (Celery monitor) |
+| http://localhost:5555 | Flower dashboard |
 
----
+## Configuration
 
-## Authentication Flow
+All settings are loaded from `backend/.env` (see `src/config.py`). Copy [`.env.example`](.env.example) to `.env` and replace placeholders. Required variables: `DATABASE_URL`, `JWT_SECRET`. Optional variables use the defaults shown in the example file.
 
-```
-1. POST /signup                        → Account created, verification email sent (async)
-2. GET  /verify/{token}                → Email confirmed, is_verified = true
-3. POST /login                         → Returns { access_token, refresh_token }
-4. GET  /me                            → Bearer <access_token> in Authorization header
-5. GET  /refresh_token                 → Bearer <refresh_token> → new access_token
-6. GET  /logout                        → JTI blocklisted in Redis, token invalidated
+Generate secrets with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-All protected routes require:
-```
-Authorization: Bearer <access_token>
-```
+When using Gmail, create an [App Password](https://support.google.com/accounts/answer/185833) rather than using your account password. Never commit `.env`. The full list of settings and defaults is in [Configuration](docs/configuration.md).
 
----
+## API Overview
 
-## Role-Based Access Control
+The API is versioned under `/api/v1` and grouped into four resources:
 
-| Role | Permissions |
+| Resource | Base path | Purpose |
+|---|---|---|
+| Auth | `/api/v1/auth` | Signup, login, token refresh, logout, password reset, user administration |
+| Books | `/api/v1/books` | Create, read, update, delete books |
+| Reviews | `/api/v1/reviews` | Add reviews to books |
+| Tags | `/api/v1/tags` | Manage tags and attach them to books |
+
+Protected routes expect the header `Authorization: Bearer <access_token>`. Access tokens last 15 minutes and refresh tokens last 2 days. Two roles exist: `user` and `admin`. An admin account can be created by including `admin_key` (matching `ADMIN_SECRET_KEY`) in the `POST /signup` body, or by an existing admin calling `POST /admin/signup`.
+
+For every endpoint, request and response examples, error codes, and the token lifecycle, see the [API reference](docs/api/README.md) and [authentication](docs/authentication.md) docs.
+
+## Background Tasks
+
+Celery handles email delivery using Redis as broker and result backend. Emails are triggered by user signup (verification link), password reset requests (reset link), and admin broadcasts (`POST /api/v1/auth/send_mail`).
+
+[Flower](https://flower.readthedocs.io/) provides a live dashboard at http://localhost:5555 showing workers, queued and active tasks, runtimes, and results. It is useful for debugging email delivery.
+
+| Task state | Meaning |
 |---|---|
-| `user` | Browse books, create/update/delete books, submit reviews, manage tags |
-| `admin` | All user permissions + list/delete users, update roles, send broadcast emails |
-
-**Creating an admin account:**
-- Pass `admin_key` equal to `ADMIN_SECRET_KEY` in the `POST /signup` body (auto-verified), **or**
-- An existing admin calls `POST /admin/signup`
-
----
-
-## Background Tasks (Celery)
-
-Email delivery is handled **asynchronously** by Celery so it never blocks HTTP responses.
-
-**Triggered automatically for:**
-| Trigger | Email |
-|---|---|
-| User signup | Email verification link |
-| Password reset request | Password reset link |
-| Admin broadcast | Custom message via `/send_mail` |
-
-**Celery configuration** (in `src/config.py`):
-```python
-broker_url = Config.REDIS_URL          # Redis as message broker
-result_backend = Config.REDIS_URL      # Redis for task results
-broker_connection_retry_on_startup = True
-```
-
----
-
-## Flower Monitoring
-
-[Flower](https://flower.readthedocs.io/) is a real-time **web-based monitoring dashboard** for Celery workers and tasks.
-
-### Start Flower
-
-```powershell
-# In backend/ with venv activated
-celery -A src.celery_tasks.c_app flower --port=5555
-```
-
-Access the dashboard at: **http://localhost:5555**
-
-### What Flower Shows
-
-| Panel | Information |
-|---|---|
-| **Dashboard** | Active workers, task rate, processed/failed counts |
-| **Tasks** | Live list of all tasks with state, runtime, arguments, result |
-| **Workers** | Worker status, concurrency, heartbeat, registered tasks |
-| **Broker** | Redis broker queue stats (active, reserved, scheduled messages) |
-
-### Task States
-
-| State | Meaning |
-|---|---|
-| `PENDING` | Task queued, not yet picked up by a worker |
-| `STARTED` | Worker is executing the task |
-| `SUCCESS` | Task completed successfully |
-| `FAILURE` | Task raised an exception |
-| `RETRY` | Task failed and is being retried |
-
-### Install Flower
-
-If not already installed:
-```powershell
-pip install flower
-```
-
-Or add it to `requirements.txt`:
-```
-flower
-```
-
-> **Tip:** Flower is optional but highly recommended during development to debug email delivery tasks and monitor worker health.
-
----
+| `PENDING` | Queued, not yet picked up |
+| `STARTED` | Being executed by a worker |
+| `SUCCESS` | Completed |
+| `FAILURE` | Raised an exception |
+| `RETRY` | Failed and is being retried |
 
 ## Database Migrations
 
-Migrations are managed with **Alembic**.
+Migrations are managed with Alembic.
 
-```powershell
-# Generate a new migration from model changes
-alembic revision --autogenerate -m "describe your change"
-
-# Apply all pending migrations
-alembic upgrade head
-
-# Roll back one migration
-alembic downgrade -1
-
-# View current migration state
-alembic current
+```bash
+alembic revision --autogenerate -m "describe your change"   # create a migration
+alembic upgrade head                                        # apply all migrations
+alembic downgrade -1                                        # roll back one step
+alembic current                                             # show current revision
 ```
 
-> In **development** (`ENV != production`), the app auto-creates all tables on startup via `SQLModel.metadata.create_all`.  
-> In **production**, always use `alembic upgrade head` instead.
+When `ENV != production`, tables are created automatically at startup with `SQLModel.metadata.create_all`. In production, always use `alembic upgrade head`.
 
----
+## Testing
+
+Tests live in `src/tests/` and use **pytest** with mocked services and sessions (no running PostgreSQL or Redis required for the current suite).
+
+```bash
+pip install pytest
+pytest src/tests
+```
+
+Coverage today is limited to **auth** and **books** routes; tags, reviews, and integration tests are not included yet.
+
+## Known Limitations
+
+- Any authenticated user can currently update or delete books and tags. Restricting this to owners and admins is recommended.
+- Only the review-creation endpoint is exposed; reviews cannot yet be listed, edited, or deleted individually.
+- No Docker or compose setup is included yet.
+
+See [Security considerations](docs/security.md) for production recommendations.
+
+## Contributing
+
+1. Fork the repository and create a feature branch.
+2. Make your changes, including a migration if models changed.
+3. Update the relevant files under `docs/` if you change endpoints, schemas, errors, or configuration.
+4. Open a pull request describing what changed and why.
 
 ## License
 
-This project is licensed under the **MIT License**.
+Released under the [MIT License](LICENSE).
