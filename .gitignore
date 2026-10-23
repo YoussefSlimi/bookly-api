@@ -1,0 +1,39 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+env/
+venv/
+.venv/
+ENV/
+
+# Environment variables — NEVER commit secrets
+.env
+.env.*
+
+# Testing / Coverage
+.pytest_cache/
+.hypothesis/
+.schemathesis/
+.coverage
+htmlcov/
+coverage.xml
+
+# Alembic compiled
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
