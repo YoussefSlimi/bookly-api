@@ -1,15 +1,14 @@
 # Bookly Backend: Technical Documentation
 
-> **Scope:** This folder documents the **backend only** — the FastAPI service under `backend/src/`, its API, database, Redis, Celery, and mail. It does **not** describe the frontend app in `frontend/`.
+> **Scope:** This folder documents the Bookly FastAPI service in `src/`, its API, database, Redis, Celery, and mail.
 
 | | |
 |---|---|
 | **Component** | Bookly backend (REST API) |
 | **API version** | v1 (`/api/v1`) |
-| **Code covered** | `backend/src/` |
+| **Code covered** | `src/` |
 | **Audience** | Backend developers, maintainers, and API integrators |
 | **Run & install** | [Backend README](../README.md) |
-| **Frontend** | Not documented here |
 
 ## Documentation map
 

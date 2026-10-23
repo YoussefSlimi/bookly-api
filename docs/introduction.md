@@ -1,6 +1,6 @@
 # Introduction
 
-This is the **backend-only** technical reference for Bookly (Python/FastAPI under `backend/`). Client UI, routing, and state in `frontend/` are out of scope.
+This is the technical reference for the Bookly FastAPI application in `src/`.
 
 Use the [documentation map](README.md#documentation-map) in the index to jump to a topic.
 

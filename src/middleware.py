@@ -8,7 +8,7 @@ from fastapi.requests import Request
 
 from src.config import Config
 
-logger = logging.getLogger("uvicorn.access")
+logger = logging.getLogger("bookly.middleware")
 
 
 def register_middleware(app: FastAPI):
@@ -57,4 +57,3 @@ def register_middleware(app: FastAPI):
     allowed_hosts = list(dict.fromkeys(["localhost", "127.0.0.1", hostname]))
 
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
-

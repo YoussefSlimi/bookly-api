@@ -5,6 +5,7 @@ A REST API for a book review platform, built with FastAPI, PostgreSQL, Redis, an
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-async-009688)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![Tests](https://github.com/YoussefSlimi/bookly-api/actions/workflows/tests.yml/badge.svg)](https://github.com/YoussefSlimi/bookly-api/actions/workflows/tests.yml)
 
 ## Table of Contents
 
@@ -66,7 +67,7 @@ Bookly lets users register, browse books, submit reviews, and organize books wit
 ## Project Structure
 
 ```
-backend/
+bookly-api/
 ├── src/
 │   ├── __init__.py          # App factory, lifespan, router registration
 │   ├── config.py            # Environment-based settings (Pydantic)
@@ -86,6 +87,7 @@ backend/
 ├── migrations/              # Alembic scripts
 ├── alembic.ini
 ├── requirements.txt
+├── requirements-dev.txt
 ├── .env.example             # Environment template (copy to .env)
 └── .env                     # Local configuration (not committed)
 ```
@@ -105,8 +107,8 @@ See [Architecture](docs/architecture.md) for the layered design and the [data mo
 ### Installation
 
 ```bash
-git clone <your-repository-url>
-cd backend
+git clone https://github.com/YoussefSlimi/bookly-api.git
+cd bookly-api
 
 python -m venv env
 source env/bin/activate        # Windows: .\env\Scripts\Activate.ps1
@@ -125,7 +127,7 @@ CREATE DATABASE bookly_db;
 
 ### Running the services
 
-Bookly needs four processes. Run each in its own terminal, with the virtual environment activated, from the `backend/` directory.
+Bookly needs four processes. Run each in its own terminal, with the virtual environment activated, from the repository root.
 
 **1. Redis**
 
@@ -146,7 +148,6 @@ On Windows, add `-P solo`, since the default `prefork` pool is not supported the
 **3. Flower (optional, Celery monitoring)**
 
 ```bash
-pip install flower
 celery -A src.celery_tasks.c_app flower --port=5555
 ```
 
@@ -165,7 +166,7 @@ uvicorn src:app --reload
 
 ## Configuration
 
-All settings are loaded from `backend/.env` (see `src/config.py`). Copy [`.env.example`](.env.example) to `.env` and replace placeholders. Required variables: `DATABASE_URL`, `JWT_SECRET`. Optional variables use the defaults shown in the example file.
+All settings are loaded from `.env` (see `src/config.py`). Copy [`.env.example`](.env.example) to `.env` and replace placeholders. Required variables: `DATABASE_URL`, `JWT_SECRET`. Optional variables use the defaults shown in the example file.
 
 Generate secrets with:
 
@@ -219,11 +220,11 @@ When `ENV != production`, tables are created automatically at startup with `SQLM
 
 ## Testing
 
-Tests live in `src/tests/` and use **pytest** with mocked services and sessions (no running PostgreSQL or Redis required for the current suite).
+Tests live in `src/tests/` and use **pytest** with mocked services and sessions (no running PostgreSQL or Redis required for the current suite). Install the development dependencies from the repository root:
 
 ```bash
-pip install pytest
-pytest src/tests
+pip install -r requirements-dev.txt
+python -m pytest src/tests
 ```
 
 Coverage today is limited to **auth** and **books** routes; tags, reviews, and integration tests are not included yet.

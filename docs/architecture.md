@@ -29,7 +29,7 @@ flowchart LR
 ## Package layout
 
 ```
-backend/
+bookly-api/
 ├── src/
 │   ├── __init__.py        Application factory, lifespan, router registration
 │   ├── config.py          Settings (pydantic-settings) and Celery configuration
@@ -43,9 +43,12 @@ backend/
 │   ├── reviews/           Book reviews
 │   ├── tags/              Tags and book-tag association
 │   ├── db/                Engine/session, models, Redis client
-│   └── templates/         HTML email templates
+│   ├── templates/         HTML email templates
+│   └── tests/             Pytest tests
 ├── migrations/            Alembic migration scripts
 ├── docs/                  Backend technical docs (this folder)
+├── requirements.txt
+├── requirements-dev.txt
 └── README.md
 ```
 

@@ -2,7 +2,7 @@
 
 ## Settings (`src/config.py`)
 
-Settings are loaded from `backend/.env` using `pydantic-settings` and exposed as the singleton `Config`.
+Settings are loaded from `.env` at the repository root using `pydantic-settings` and exposed as the singleton `Config`.
 
 ```python
 from src.config import Config
